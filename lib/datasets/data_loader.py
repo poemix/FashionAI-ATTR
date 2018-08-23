@@ -19,7 +19,13 @@ def csv_batch(root, data_path, label, n_class, batch_size, height=331, width=331
         n_sample = len(data_path)
         name = tf.convert_to_tensor(data_path, tf.string)
         data_path = tf.convert_to_tensor(list(map(lambda x: '{}{}'.format(root, x), data_path)), tf.string)
-        label = tf.convert_to_tensor(label, tf.string)
+        return_label = True
+        try:
+            label = tf.convert_to_tensor(label, tf.int32)
+        except Exception as e:
+            print(e)
+            label = tf.convert_to_tensor(label, tf.string)
+            return_label = False
 
         data_path, label, name = tf.train.slice_input_producer([data_path, label, name],
                                                                shuffle=shuffle,
@@ -29,7 +35,8 @@ def csv_batch(root, data_path, label, n_class, batch_size, height=331, width=331
         image_value = tf.read_file(data_path)
         data = tf.image.decode_jpeg(image_value, channels=3)
 
-        # label = tf.one_hot(label, n_class, on_value=1., off_value=0.)
+        if return_label:
+            label = tf.one_hot(label, n_class, on_value=1., off_value=0.)
 
         if transformer_fn is not None:
             data = transformer_fn(data)
@@ -78,7 +85,10 @@ class MTCSVLoader(object):
         if shuffle:
             df = df.sample(frac=1., random_state=seed)
 
-        # df[2] = df.apply(lambda line: line[2].index('y') + len(line[2]) if line[3] else line[2].index('y'), axis=1)
+        try:
+            df[2] = df.apply(lambda line: line[2].index('y') + len(line[2]) if line[3] else line[2].index('y'), axis=1)
+        except Exception as e:
+            print(e)
 
         print('{}: create session!'.format(self.__class__.__name__))
         self.batch_ops = {}
@@ -212,4 +222,4 @@ if __name__ == '__main__':
         # print(batch1[0].shape, batch1[1].shape, list(map(lambda x: bytes.decode(x), batch1[2])))
         # print(batch2[0].shape)
         batch = st_loader.batch()
-        print(batch[0].shape)
+        print(batch[0].shape, batch[1].shape)

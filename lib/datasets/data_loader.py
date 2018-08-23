@@ -153,7 +153,11 @@ class STCSVLoader(object):
         if shuffle:
             df = df.sample(frac=1., random_state=seed)
 
-        df[2] = df.apply(lambda line: line[2].index('y') + len(line[2]) if line[3] else line[2].index('y'), axis=1)
+        try:
+            df[2] = df.apply(lambda line: line[2].index('y') + len(line[2]) if line[3] else line[2].index('y'), axis=1)
+        except Exception as e:
+            print(e)
+
         data_path = df[0].values
         label = df[2].values
 

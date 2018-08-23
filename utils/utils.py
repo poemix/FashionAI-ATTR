@@ -48,7 +48,8 @@ def apply_with_random_selector(x, func, num_cases):
     )[0]
 
 
-def writer(save_path, queue, stop_token='stop'):
+def csv_writer(save_path, queue, stop_token='stop'):
+    """Write predict prob to csv file."""
     df = pd.DataFrame()
     names = []
     attr_keys = []
@@ -59,7 +60,7 @@ def writer(save_path, queue, stop_token='stop'):
             df['name'] = names
             df['attr_key'] = attr_keys
             df['prob'] = probs
-            df.to_csv('{}/sub.csv'.format(save_path), index=False, header=False)
+            df.to_csv(save_path, index=False, header=False)
             return
         n_class = di.num_classes[attr_key]
         for idx, name in enumerate(name_batch):
@@ -68,6 +69,16 @@ def writer(save_path, queue, stop_token='stop'):
             prob = prob_batch[idx]
             k = np.argmax(prob)
             if k > n_class - 1:
-                probs.append(';'.join(list(map(str, prob[n_class:]))))
+                probs.append(';'.join(list(map(lambda x: '{:.4f}'.format(x), prob[n_class:]))))
             else:
-                probs.append(';'.join(list(map(str, prob[:n_class]))))
+                probs.append(';'.join(list(map(lambda x: '{:.4f}'.format(x), prob[:n_class]))))
+
+
+def heatmap_writer(save_path, queue, stop_token='stop'):
+    """Write heatmap to npy file."""
+    pass
+
+
+def roi_writer(save_path, queue, stop_token='stop'):
+    """Write ROI image to jpg file."""
+    pass

@@ -13,7 +13,7 @@ from lib.datasets.data_loader import MTCSVLoader
 from lib.datasets import transforms
 from experiment.hyperparams import HyperParams as hp
 from experiment.data_info import DataInfo as di
-from utils import session, writer
+from utils import session, csv_writer
 
 
 def predict():
@@ -34,7 +34,7 @@ def predict():
 
     mt_loader = MTCSVLoader(root='E:/fashion-dataset/rank',
                             csv_path='E:\\fashion-dataset\\rank\\Tests\\question.csv',
-                            batch_size=hp.batch_size,
+                            batch_size=64,
                             transformer_fn=transformer,
                             shuffle=False,
                             num_epochs=1,
@@ -44,7 +44,7 @@ def predict():
     saver = tf.train.Saver()
     saver.restore(sess, '{}/model/MyInceptionV4/MultiTask/fashion-ai.ckpt'.format(hp.pro_path))
     queue = multiprocessing.Queue(maxsize=30)
-    writer_process = multiprocessing.Process(target=writer, args=['{}/result'.format(hp.pro_path), queue, 'stop'])
+    writer_process = multiprocessing.Process(target=csv_writer, args=['{}/result/sub.csv'.format(hp.pro_path), queue, 'stop'])
     writer_process.start()
     for attr_key, n_class in di.num_classes_v2.items():
         flat_logit = net.layers['cls_prob_{}'.format(attr_key)]

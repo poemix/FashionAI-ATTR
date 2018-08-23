@@ -86,7 +86,7 @@ def train_net(attr_key):
         sess = session()
         saver = tf.train.Saver(max_to_keep=50)
         sess.run(tf.global_variables_initializer())
-        # net.load(sess, '{}/model/pretrain/{}'.format(hp.pro_path, 'inception_v4.ckpt'))
+        net.load(sess, '{}/model/Pretrain/{}'.format(hp.pro_path, 'inception_v4.ckpt'))
         step = -1
         last_snapshot_iter = -1
         max_step = hp.num_epoch * num_batch

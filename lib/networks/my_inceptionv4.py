@@ -13,24 +13,6 @@ from lib.networks.slim.nets import inception_v4
 from experiment.hyperparams import HyperParams as hp
 
 
-def run_proc(sess, reader, variables, ignore):
-    for name in variables:
-        try:
-            tensor = sess.graph.get_tensor_by_name('{}/{}:0'.format('MyInceptionV4', name))
-            weight = reader.get_tensor(name)
-            sess.run(tf.assign(tensor, weight))
-            print('{} assign success.'.format(name))
-        except KeyError as e:
-            if ignore:
-                print(e, name)
-            else:
-                print(e)
-                raise e
-        except Exception as e:
-            print(e, name)
-            raise e
-
-
 class MyInceptionV4(object):
     def __init__(self, data, label, keep_prob, is_training):
         # placeholder
@@ -121,7 +103,24 @@ class MyInceptionV4(object):
     def load(self, sess, file, ignore=True):
         reader = tf.train.NewCheckpointReader(file)
         variables = reader.get_variable_to_shape_map()
-        run_proc(sess, reader, variables, ignore)
+        assign_ops = []
+        for name in variables:
+            try:
+                tensor = sess.graph.get_tensor_by_name('{}/{}:0'.format('MyInceptionV4', name))
+                weight = reader.get_tensor(name)
+                assign_ops.append(tf.assign(tensor, weight))
+                print('{} assign success.'.format(name))
+            except KeyError as e:
+                if ignore:
+                    print(e, name)
+                else:
+                    print(e)
+                    raise e
+            except Exception as e:
+                print(e, name)
+                raise e
+        sess.run(assign_ops)
+        print('Assign Done')
 
 
 if __name__ == '__main__':

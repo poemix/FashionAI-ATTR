@@ -101,14 +101,13 @@ def grad_cam_plus(logits, target_conv):
 
 
 if __name__ == "__main__":
-    import cv2
-    import numpy as np
+    import multiprocessing
     from lib.networks.my_inceptionv4 import MyInceptionV4
     from lib.datasets.data_loader import MTCSVLoader
     from lib.datasets import transforms
     from experiment.hyperparams import HyperParams as hp
     from experiment.data_info import DataInfo as di
-    from utils import session
+    from utils import session, vis_cam, cam_writer, roi_writer
 
     data = tf.placeholder(tf.float32, [None, 331, 331, 3])
     label = tf.placeholder(tf.float32, [None, None])
@@ -124,8 +123,8 @@ if __name__ == "__main__":
             # transforms.RandomHorizontalFlip(),
         ]
     )
-
-    mt_loader = MTCSVLoader(root='E:/fashion-dataset/base',
+    root = 'E:/fashion-dataset/base'
+    mt_loader = MTCSVLoader(root=root,
                             csv_path='{}/dataset/labels/s1_label.csv'.format(hp.pro_path),
                             batch_size=hp.batch_size,
                             transformer_fn=transformer,
@@ -136,6 +135,13 @@ if __name__ == "__main__":
     sess.run(tf.global_variables_initializer())
     saver = tf.train.Saver()
     saver.restore(sess, '{}/model/MyInceptionV4/MultiTask/fashion-ai.ckpt'.format(hp.pro_path))
+    cam_queue = multiprocessing.Queue(maxsize=30)
+    cam_writer_process = multiprocessing.Process(target=cam_writer, args=['E:/cam', cam_queue, 'stop'])
+    cam_writer_process.start()
+
+    roi_queue = multiprocessing.Queue(maxsize=30)
+    roi_writer_process = multiprocessing.Process(target=roi_writer, args=['E:/roi', roi_queue, 'stop'])
+    roi_writer_process.start()
     for attr_key, n_class in di.num_classes_v2.items():
         print(attr_key)
         target_conv_layer = net.layers['PreGAP']
@@ -147,6 +153,7 @@ if __name__ == "__main__":
             while not mt_loader.coord.should_stop():
                 img_batch, label_batch, name_batch = mt_loader.batch(attr_key=attr_key)
                 names = list(map(lambda v: bytes.decode(v), name_batch))
+                print(names)
                 cams, cam_pluses, yp, prob = sess.run(
                     [grad_cam, grad_cam_plus, y_pred, logits],
                     feed_dict={
@@ -154,26 +161,16 @@ if __name__ == "__main__":
                         net.is_training: False,
                         net.keep_prob: 1
                     })
+                cam_queue.put(('continue', names, cams))
+                roi_queue.put(('continue', root, names, cams))
                 print(cams.shape)
                 # 可视化CAM
-                for idx, cam in enumerate(cams):
-                    print(idx)
-                    name = names[idx]
-                    img = cv2.imread('E:/fashion-dataset/base/' + name, cv2.IMREAD_UNCHANGED)
-                    cam = cv2.resize((cam * 255).astype(np.uint8), (img.shape[1], img.shape[0]),
-                                     interpolation=cv2.INTER_LINEAR)
-                    heatmap = cv2.applyColorMap(cam, cv2.COLORMAP_JET)
-                    heatmap[cam <= hp.threshold] = 0
-
-                    gray = cv2.cvtColor(heatmap, cv2.COLOR_BGR2GRAY)
-                    ret, thresh = cv2.threshold(gray, hp.threshold, 255, cv2.THRESH_BINARY)
-                    pos = np.where(thresh == 255)
-                    x, y, w, h = cv2.boundingRect(np.vstack((pos[1], pos[0])).T)
-                    cv2.rectangle(img, (x, y), (x + w, y + h), (0, 255, 0), 2)
-                    out = cv2.addWeighted(img, 0.8, heatmap, 0.4, 0)
-                    cv2.imshow('img', out)
-                    cv2.waitKey(0)
-                    cv2.destroyAllWindows()
+                vis_cam(root, names, cams)
         except tf.errors.OutOfRangeError:
             print('Done.')
+    cam_queue.put(('stop', None, None))
+    cam_writer_process.join()
+
+    roi_queue.put(('stop', None, None, None))
+    roi_writer_process.join()
     sess.close()

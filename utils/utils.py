@@ -6,6 +6,8 @@
 # @Software : PyCharm
 
 
+import os
+import cv2
 import numpy as np
 import pandas as pd
 import tensorflow as tf
@@ -74,11 +76,58 @@ def csv_writer(save_path, queue, stop_token='stop'):
                 probs.append(';'.join(list(map(lambda x: '{:.4f}'.format(x), prob[:n_class]))))
 
 
-def heatmap_writer(save_path, queue, stop_token='stop'):
-    """Write heatmap to npy file."""
-    pass
+def cam_writer(save_path, queue, stop_token='stop'):
+    """Write cam to npy file."""
+    while True:
+        token, name_batch, cam_batch = queue.get()
+        if token == stop_token:
+            return
+        for idx, name in enumerate(name_batch):
+            path = '{}/{}'.format(save_path, '/'.join(name.split('/')[0:-1]))
+            if not os.path.exists(path):
+                os.makedirs(path)
+            np.save('{}/{}.npy'.format(path, name.split('/')[-1].split('.')[0]), cam_batch[idx])
 
 
 def roi_writer(save_path, queue, stop_token='stop'):
     """Write ROI image to jpg file."""
-    pass
+    while True:
+        token, root, name_batch, cam_batch = queue.get()
+        if token == stop_token:
+            return
+        for idx, name in enumerate(name_batch):
+            print(idx, name)
+            cam = cam_batch[idx]
+            path = '{}/{}'.format(save_path, '/'.join(name.split('/')[0:-1]))
+            if not os.path.exists(path):
+                os.makedirs(path)
+            img = cv2.imread('{}/{}'.format(root, name), cv2.IMREAD_UNCHANGED)
+            cam = cv2.resize((cam * 255).astype(np.uint8), (img.shape[1], img.shape[0]), interpolation=cv2.INTER_LINEAR)
+            heatmap = cv2.applyColorMap(cam, cv2.COLORMAP_JET)
+            heatmap[cam <= hp.threshold] = 0
+
+            gray = cv2.cvtColor(heatmap, cv2.COLOR_BGR2GRAY)
+            ret, thresh = cv2.threshold(gray, hp.threshold, 255, cv2.THRESH_BINARY)
+            pos = np.where(thresh == 255)
+            x, y, w, h = cv2.boundingRect(np.vstack((pos[1], pos[0])).T)
+            cv2.imwrite('{}/{}'.format(save_path, name), img[y: y + h, x: x + w])
+
+
+def vis_cam(root, names, cams):
+    for idx, cam in enumerate(cams):
+        name = names[idx]
+        print(idx, name)
+        img = cv2.imread('{}/{}'.format(root, name), cv2.IMREAD_UNCHANGED)
+        cam = cv2.resize((cam * 255).astype(np.uint8), (img.shape[1], img.shape[0]), interpolation=cv2.INTER_LINEAR)
+        heatmap = cv2.applyColorMap(cam, cv2.COLORMAP_JET)
+        heatmap[cam <= hp.threshold] = 0
+
+        gray = cv2.cvtColor(heatmap, cv2.COLOR_BGR2GRAY)
+        ret, thresh = cv2.threshold(gray, hp.threshold, 255, cv2.THRESH_BINARY)
+        pos = np.where(thresh == 255)
+        x, y, w, h = cv2.boundingRect(np.vstack((pos[1], pos[0])).T)
+        cv2.rectangle(img, (x, y), (x + w, y + h), (0, 255, 0), 2)
+        out = cv2.addWeighted(img, 0.8, heatmap, 0.4, 0)
+        cv2.imshow('img', out)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
